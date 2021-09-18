@@ -1,10 +1,51 @@
 import torch
 import numpy as np
+import torch.nn as nn
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
 else:
     device = torch.device("cpu")
+
+
+@torch.no_grad()
+def update_quantized_weight_values(model):
+
+    return None
+
+
+@torch.no_grad()
+def update_masks(model, amount=0.5):
+    weights = []
+    for layer in model.modules():
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(nn.BatchNorm1d) or isinstance(nn.BatchNorm2d):
+            weights.append(layer.weight.clone().detach().to(device))
+    weights_abs_flatten = np.zeros(0)
+    weights_shape = []
+    weights_start_idx = []
+    weight_start_idx = 0
+    for weight in weights:
+        weights_abs_flatten = np.append(weights_abs_flatten, weight.abs().view(-1).clone().detach().cpu())
+        weights_shape.append(weight.shape)
+        weights_start_idx.append(weight_start_idx)
+        weight_start_idx += len(weight.view(-1))
+    weights_abs_flatten = torch.Tensor(weights_abs_flatten).to(device)
+    k = int(len(weights_abs_flatten) * (1 - amount))
+    idx_topk = torch.topk(weights_abs_flatten, k=k)[1]
+    masks_flatten = torch.zeros(weights_abs_flatten.shape).to(device)
+    masks_flatten[idx_topk] = 1
+    masks = []
+    for i, weight in enumerate(weights):
+        if i < (len(weights) - 1):
+            mask = masks_flatten[weights_start_idx[i]:weights_start_idx[i+1]].reshape(weights_shape[i])
+        else:
+            mask = masks_flatten[weights_start_idx[i]:].reshape(weights_shape[i])
+        masks.append(mask)
+    mask_idx = 0
+    for layer in model.modules():
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(nn.BatchNorm1d) or isinstance(nn.BatchNorm2d):
+            layer.set_mask(masks[mask_idx])
+            mask_idx += 1
 
 
 @torch.no_grad()
@@ -18,20 +59,21 @@ def prune_weights_abs(params, amount=0.9):
     params = list(params)
     params_abs_flatten = np.zeros(0)
     params_shape = []
-    params_flatten_len = []
+    params_start_idx = []
+    param_start_idx = 0
     for param in params:
         params_abs_flatten = np.append(params_abs_flatten, param.abs().view(-1).clone().detach().cpu())
         params_shape.append(param.shape)
-        params_flatten_len.append(len(param.view(-1)))
+        params_start_idx.append(param_start_idx)
+        param_start_idx += len(param.view(-1))
     params_abs_flatten = torch.Tensor(params_abs_flatten).to(device)
     k = int(len(params_abs_flatten) * (1-amount))
     idx_topk = torch.topk(params_abs_flatten, k=k)[1]
-    mask_flatten = torch.zeros(params_abs_flatten.shape).to(device)
-    mask_flatten[idx_topk] = 1
+    masks_flatten = torch.zeros(params_abs_flatten.shape).to(device)
+    masks_flatten[idx_topk] = 1
     for i, param in enumerate(params):
-        if i == 0:
-            mask = mask_flatten[:params_flatten_len[i]].reshape(params_shape[i])
-            param.mul_(mask)
+        if i < (len(params)-1):
+            mask = masks_flatten[params_start_idx[i]:params_start_idx[i+1]].reshape(params_shape[i])
         else:
-            mask = mask_flatten[params_flatten_len[i-1]:params_flatten_len[i-1]+params_flatten_len[i]].reshape(params_shape[i])
-            param.mul_(mask)
+            mask = masks_flatten[params_start_idx[i]:].reshape(params_shape[i])
+        param.mul_(mask)
