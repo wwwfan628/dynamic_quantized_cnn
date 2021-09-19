@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
+import math
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -9,9 +10,63 @@ else:
 
 
 @torch.no_grad()
-def update_quantized_weight_values(model):
+def update_quantized_weight_values(model, perm_size=16, amount=0.5):
+    k_pos = math.ceil(0.5 * amount * perm_size)
+    k_neg = math.floor(0.5 * amount * perm_size)
+    weights = []
+    for layer in model.modules():
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(nn.BatchNorm1d) or isinstance(
+                nn.BatchNorm2d):
+            weights.append(layer.weight.clone().detach().to(device))
+    weights_flatten = np.zeros(0)
+    weights_shape = []
+    weights_start_idx = []
+    weight_start_idx = 0
+    for weight in weights:
+        weights_flatten = np.append(weights_flatten, weight.view(-1).clone().detach().cpu())
+        weights_shape.append(weight.shape)
+        weights_start_idx.append(weight_start_idx)
+        weight_start_idx += len(weight.view(-1))
+    weights_flatten = torch.Tensor(weights_flatten).to(device)
+    if weights_flatten.numel() % perm_size == 0:
+        pos_idx_topk = torch.topk(
+            weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1, perm_size).abs(),
+            k=k_pos)
+        neg_idx_topk = torch.topk(
+            weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1, perm_size).abs(),
+            k=k_neg)
+        pos_weight_values = weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1,
+                                                            perm_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
+        neg_weight_values = weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1,
+                                                            perm_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
+    else:
+        n_row = weights_flatten.numel() // perm_size
+        weights_flatten_dividable = weights_flatten[:n_row * perm_size]
+        weights_flatten_rest = weights_flatten[n_row * perm_size:]
+        pos_idx_topk_dividable = torch.topk(
+            weights_flatten_dividable.where(weights_flatten_dividable > 0,
+                                    torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_pos)
+        neg_idx_topk_dividable = torch.topk(
+            weights_flatten_dividable.where(weights_flatten_dividable < 0,
+                                    torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_neg)
+        pos_idx_topk_rest = torch.topk(
+            weights_flatten_rest.where(weights_flatten_rest > 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_pos)
+        neg_idx_topk_rest = torch.topk(
+            weights_flatten_rest.where(weights_flatten_rest < 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_neg)
+        pos_weight_values_dividable = weights_flatten_dividable.where(weights_flatten_dividable > 0, torch.zeros(
+            weights_flatten_dividable.shape)).view(-1, perm_size).gather(dim=1, index=pos_idx_topk_dividable)
+        neg_weight_values_dividable = weights_flatten_dividable.where(weights_flatten_dividable < 0, torch.zeros(
+            weights_flatten_dividable.shape)).view(-1, perm_size).gather(dim=1, index=neg_idx_topk_dividable)
+        pos_weight_values_rest = weights_flatten_rest.where(weights_flatten_rest > 0, torch.zeros(
+            weights_flatten_rest.shape)).gather(dim=1, index=pos_idx_topk_rest)
+        neg_weight_values_rest = weights_flatten_rest.where(weights_flatten_rest < 0, torch.zeros(
+            weights_flatten_rest.shape)).gather(dim=1, index=neg_idx_topk_rest)
+        pos_weight_values = torch.cat([pos_weight_values_dividable, pos_weight_values_rest], dim=0).mean(dim=0)
+        neg_weight_values = torch.cat([pos_weight_values_dividable, pos_weight_values_rest], dim=0).mean(dim=0)
 
-    return None
+    quantized_weight_values = torch.cat([pos_weight_values, neg_weight_values], dim=0)
+    for layer in model.modules():
+        layer.set_quantized_weight_values(quantized_weight_values)
 
 
 @torch.no_grad()
