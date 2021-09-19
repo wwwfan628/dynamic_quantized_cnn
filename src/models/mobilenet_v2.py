@@ -1,4 +1,5 @@
 import torch.nn as nn
+from utils.ste_layers import LinearQuantized, Conv2dQuantized
 
 
 def conv_dw(ch_in, stride=1):

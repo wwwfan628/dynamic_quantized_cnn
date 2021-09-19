@@ -1,7 +1,7 @@
-from models.mobilenet_v1 import MobileNetV1
+from models.mobilenet_v1 import MobileNetV1_Quantized
 from models.mobilenet_v2 import MobileNetV2
 from models.lenet5 import LeNet5_Quantized
-from models.vgg import VGG_small
+from models.vgg import VGG_Quantized
 from utils.datasets import load_dataset
 from utils.prune import update_masks, update_quantized_weight_values
 from torch import nn, optim
@@ -43,9 +43,9 @@ def main(args):
     if args.model_name == 'LeNet5':
         model = LeNet5_Quantized(input_channel=in_channels, n_classes=num_classes, num_quantized_weight_values=args.perm_size)
     elif args.model_name == 'VGG':
-        model = VGG_small(input_channel=in_channels, n_classes=num_classes).to(device)
+        model = VGG_Quantized(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV1':
-        model = MobileNetV1(input_channel=in_channels, n_classes=num_classes).to(device)
+        model = MobileNetV1_Quantized(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV2':
         model = MobileNetV2(input_channel=in_channels, n_classes=num_classes).to(device)
     else:
@@ -174,9 +174,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset_name', default='ImageNet', help='choose dataset from: MNIST, CIFAR10, ImageNet, ImageNet_mini, COCO')
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
-    parser.add_argument('--batch_size', type=int, default=128, help='batch size for training')
+    parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.45, help='learning rate of optimizer')
+    parser.add_argument('--lr', type=float, default=0.4, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
