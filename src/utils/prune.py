@@ -15,8 +15,7 @@ def update_quantized_weight_values(model, perm_size=16, amount=0.5):
     k_neg = math.floor(0.5 * amount * perm_size)
     weights = []
     for layer in model.modules():
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(nn.BatchNorm1d) or isinstance(
-                nn.BatchNorm2d):
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(layer, nn.BatchNorm1d) or isinstance(layer, nn.BatchNorm2d):
             weights.append(layer.weight.clone().detach().to(device))
     weights_flatten = np.zeros(0)
     weights_shape = []
@@ -31,10 +30,10 @@ def update_quantized_weight_values(model, perm_size=16, amount=0.5):
     if weights_flatten.numel() % perm_size == 0:
         pos_idx_topk = torch.topk(
             weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1, perm_size).abs(),
-            k=k_pos)
+            k=k_pos)[1]
         neg_idx_topk = torch.topk(
             weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1, perm_size).abs(),
-            k=k_neg)
+            k=k_neg)[1]
         pos_weight_values = weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1,
                                                             perm_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
         neg_weight_values = weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1,
@@ -45,35 +44,36 @@ def update_quantized_weight_values(model, perm_size=16, amount=0.5):
         weights_flatten_rest = weights_flatten[n_row * perm_size:]
         pos_idx_topk_dividable = torch.topk(
             weights_flatten_dividable.where(weights_flatten_dividable > 0,
-                                    torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_pos)
+                                    torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_pos)[1]
         neg_idx_topk_dividable = torch.topk(
             weights_flatten_dividable.where(weights_flatten_dividable < 0,
-                                    torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_neg)
+                                    torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_neg)[1]
         pos_idx_topk_rest = torch.topk(
-            weights_flatten_rest.where(weights_flatten_rest > 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_pos)
+            weights_flatten_rest.where(weights_flatten_rest > 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_pos)[1]
         neg_idx_topk_rest = torch.topk(
-            weights_flatten_rest.where(weights_flatten_rest < 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_neg)
+            weights_flatten_rest.where(weights_flatten_rest < 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_neg)[1]
         pos_weight_values_dividable = weights_flatten_dividable.where(weights_flatten_dividable > 0, torch.zeros(
             weights_flatten_dividable.shape)).view(-1, perm_size).gather(dim=1, index=pos_idx_topk_dividable)
         neg_weight_values_dividable = weights_flatten_dividable.where(weights_flatten_dividable < 0, torch.zeros(
             weights_flatten_dividable.shape)).view(-1, perm_size).gather(dim=1, index=neg_idx_topk_dividable)
         pos_weight_values_rest = weights_flatten_rest.where(weights_flatten_rest > 0, torch.zeros(
-            weights_flatten_rest.shape)).gather(dim=1, index=pos_idx_topk_rest)
+            weights_flatten_rest.shape))[pos_idx_topk_rest]
         neg_weight_values_rest = weights_flatten_rest.where(weights_flatten_rest < 0, torch.zeros(
-            weights_flatten_rest.shape)).gather(dim=1, index=neg_idx_topk_rest)
-        pos_weight_values = torch.cat([pos_weight_values_dividable, pos_weight_values_rest], dim=0).mean(dim=0)
-        neg_weight_values = torch.cat([pos_weight_values_dividable, pos_weight_values_rest], dim=0).mean(dim=0)
+            weights_flatten_rest.shape))[neg_idx_topk_rest]
+        pos_weight_values = torch.cat([pos_weight_values_dividable, pos_weight_values_rest.unsqueeze(dim=0)], dim=0).mean(dim=0)
+        neg_weight_values = torch.cat([neg_weight_values_dividable, neg_weight_values_rest.unsqueeze(dim=0)], dim=0).mean(dim=0)
 
     quantized_weight_values = torch.cat([pos_weight_values, neg_weight_values], dim=0)
     for layer in model.modules():
-        layer.set_quantized_weight_values(quantized_weight_values)
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
+            layer.set_quantized_weight_values(quantized_weight_values)
 
 
 @torch.no_grad()
 def update_masks(model, amount=0.5):
     weights = []
     for layer in model.modules():
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(nn.BatchNorm1d) or isinstance(nn.BatchNorm2d):
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(layer, nn.BatchNorm1d) or isinstance(layer, nn.BatchNorm2d):
             weights.append(layer.weight.clone().detach().to(device))
     weights_abs_flatten = np.zeros(0)
     weights_shape = []
@@ -98,7 +98,7 @@ def update_masks(model, amount=0.5):
         masks.append(mask)
     mask_idx = 0
     for layer in model.modules():
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(nn.BatchNorm1d) or isinstance(nn.BatchNorm2d):
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(layer, nn.BatchNorm1d) or isinstance(layer, nn.BatchNorm2d):
             layer.set_mask(masks[mask_idx])
             mask_idx += 1
 
