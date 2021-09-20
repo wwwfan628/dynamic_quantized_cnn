@@ -11,7 +11,6 @@ else:
 class ste_function(torch.autograd.Function):
     @staticmethod
     def forward(ctx, weight, quantized_weight_values):
-        ctx.save_for_backward(quantized_weight_values)
         idx = torch.argmin(
             (weight.view(-1).unsqueeze(1).expand(-1, quantized_weight_values.shape[0]) - quantized_weight_values).abs(),
             dim=1).unsqueeze(0)
@@ -20,8 +19,7 @@ class ste_function(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        quantized_weight_values, = ctx.saved_tensors
-        return grad_output, torch.zeros(quantized_weight_values.shape).to(device)
+        return grad_output, None
 
 
 class LinearQuantized(nn.Linear):
