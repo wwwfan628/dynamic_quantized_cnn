@@ -34,7 +34,6 @@ class LinearQuantized(nn.Linear):
 
     def set_mask(self, mask):
         self.mask = mask
-        self.weight.data = self.weight.data * self.mask.data
         self.mask_flag = True
 
     def get_quantized_weight_values(self):
@@ -63,7 +62,6 @@ class Conv2dQuantized(nn.Conv2d):
 
     def set_mask(self, mask):
         self.mask = mask
-        self.weight.data = self.weight.data * self.mask.data
         self.mask_flag = True
 
     def get_quantized_weight_values(self):

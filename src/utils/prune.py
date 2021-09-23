@@ -48,6 +48,7 @@ def update_quantized_weight_values(model, perm_size=16, amount=0.5):
         neg_idx_topk_dividable = torch.topk(
             weights_flatten_dividable.where(weights_flatten_dividable < 0,
                                     torch.zeros(weights_flatten_dividable.shape)).view(-1, perm_size).abs(), k=k_neg)[1]
+        # TODO: k > num_rest error!!
         pos_idx_topk_rest = torch.topk(
             weights_flatten_rest.where(weights_flatten_rest > 0, torch.zeros(weights_flatten_rest.shape)).abs(), k=k_pos)[1]
         neg_idx_topk_rest = torch.topk(
