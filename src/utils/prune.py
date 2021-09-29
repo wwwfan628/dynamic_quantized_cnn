@@ -10,9 +10,9 @@ else:
 
 
 @torch.no_grad()
-def update_quantized_weight_values(model, perm_size=16, amount=0.5):
-    k_pos = math.ceil(0.5 * amount * perm_size)
-    k_neg = math.floor(0.5 * amount * perm_size)
+def update_quantized_weight_values(model, group_size=16, num_values=0.5):
+    k_pos = math.ceil(0.5 * num_values)
+    k_neg = math.floor(0.5 * num_values)
     weights = []
     for layer in model.modules():
         if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(layer, nn.BatchNorm1d) or isinstance(layer, nn.BatchNorm2d):
@@ -27,29 +27,29 @@ def update_quantized_weight_values(model, perm_size=16, amount=0.5):
         weights_start_idx.append(weight_start_idx)
         weight_start_idx += len(weight.view(-1))
     weights_flatten = torch.Tensor(weights_flatten).to(device)
-    if weights_flatten.numel() % perm_size == 0:
+    if weights_flatten.numel() % group_size == 0:
         pos_idx_topk = torch.topk(
-            weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1, perm_size).abs(),
+            weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1, group_size).abs(),
             k=k_pos)[1]
         neg_idx_topk = torch.topk(
-            weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1, perm_size).abs(),
+            weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1, group_size).abs(),
             k=k_neg)[1]
         pos_weight_values = weights_flatten.where(weights_flatten > 0, torch.zeros(weights_flatten.shape)).view(-1,
-                                                            perm_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
+                                                                                                                group_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
         neg_weight_values = weights_flatten.where(weights_flatten < 0, torch.zeros(weights_flatten.shape)).view(-1,
-                                                            perm_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
+                                                                                                                group_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
     else:
-        n_row = math.ceil(weights_flatten.numel() / perm_size)
-        extended_weights_flatten = torch.zeros(n_row * perm_size)
+        n_row = math.ceil(weights_flatten.numel() / group_size)
+        extended_weights_flatten = torch.zeros(n_row * group_size)
         extended_weights_flatten[:weights_flatten.numel()] = weights_flatten
         pos_idx_topk = torch.topk(extended_weights_flatten.where(extended_weights_flatten > 0,
-                    torch.zeros(extended_weights_flatten.shape)).view(-1, perm_size).abs(), k=k_pos)[1]
+                    torch.zeros(extended_weights_flatten.shape)).view(-1, group_size).abs(), k=k_pos)[1]
         neg_idx_topk = torch.topk(extended_weights_flatten.where(extended_weights_flatten < 0,
-                    torch.zeros(extended_weights_flatten.shape)).view(-1, perm_size).abs(), k=k_neg)[1]
+                    torch.zeros(extended_weights_flatten.shape)).view(-1, group_size).abs(), k=k_neg)[1]
         pos_weight_values = extended_weights_flatten.where(extended_weights_flatten > 0, torch.zeros(
-            extended_weights_flatten.shape)).view(-1, perm_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
+            extended_weights_flatten.shape)).view(-1, group_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
         neg_weight_values = extended_weights_flatten.where(extended_weights_flatten < 0, torch.zeros(
-            extended_weights_flatten.shape)).view(-1, perm_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
+            extended_weights_flatten.shape)).view(-1, group_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
     quantized_weight_values = torch.cat([pos_weight_values, neg_weight_values], dim=0)
     for layer in model.modules():
         if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):

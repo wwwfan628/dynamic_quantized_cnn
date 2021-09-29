@@ -122,7 +122,7 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.045, weight_decay=0.00004, momentum=0.9, nesterov=True)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.00004, momentum=0.9, nesterov=True)
         quant_optimizer.load_state_dict(checkpoint['quant_optimizer_state_dict'])
         tradi_optimizer.load_state_dict(checkpoint['tradi_optimizer_state_dict'])
         for state in quant_optimizer.state.values():
@@ -142,7 +142,7 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.045, weight_decay=0.00004, momentum=0.9, nesterov=True)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.00004, momentum=0.9, nesterov=True)
         # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
         best_test_acc = 0
         best_epoch = 0
@@ -175,8 +175,8 @@ def train(model, dataloader_train, dataloader_test, args):
         # adjust lr
         # scheduler.step()
         tradi_optimizer.param_groups[0]['lr'] *= 0.98
-        if epoch % 10 == 0:
-            quant_optimizer.param_groups[0]['lr'] *= 0.9
+        # if epoch % 10 == 0:
+        quant_optimizer.param_groups[0]['lr'] *= 0.98
 
         # early stop
         if test_accuracy > best_test_acc:
@@ -205,13 +205,13 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.05, help='learning rate of optimizer')
+    parser.add_argument('--lr', type=float, default=0.1, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
     parser.add_argument('--group_size', type=int, default=64, help='group size to compute max and min values')
     parser.add_argument('--num_values', type=int, default=16, help='number of available parameter values')
-    parser.add_argument('--amount', type=float, default=0.5, help='how many parameters to be pruned')
+    parser.add_argument('--amount', type=float, default=0.25, help='how many parameters to be pruned')
     parser.add_argument('--patience', type=int, default=10, help='patience for early stop')
     parser.add_argument('--resume', action='store_true', help='if true, resume training')
     parser.add_argument('--checkpoint_path', default=None)

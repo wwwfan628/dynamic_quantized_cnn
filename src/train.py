@@ -41,7 +41,7 @@ def main(args):
 
     # build neural network
     if args.model_name == 'LeNet5':
-        model = LeNet5_Quantized(input_channel=in_channels, n_classes=num_classes, num_quantized_weight_values=args.perm_size)
+        model = LeNet5_Quantized(input_channel=in_channels, n_classes=num_classes, num_quantized_weight_values=args.num_values)
     elif args.model_name == 'VGG':
         model = VGG_Quantized(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV1':
@@ -130,7 +130,7 @@ def train(model, dataloader_train, dataloader_test, args):
         t0 = time.time()  # start time
         model.train()
         for i, (images, labels) in enumerate(dataloader_train):
-            update_quantized_weight_values(model, perm_size=args.perm_size, amount=args.amount)
+            update_quantized_weight_values(model, group_size=args.group_size, num_values=args.num_values)
             update_masks(model, amount=args.amount)
             images = images.to(device)
             labels = labels.to(device)
@@ -176,11 +176,12 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.4, help='learning rate of optimizer')
+    parser.add_argument('--lr', type=float, default=0.1, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
-    parser.add_argument('--perm_size', type=int, default=16, help='permutation size')
+    parser.add_argument('--group_size', type=int, default=64, help='permutation size')
+    parser.add_argument('--num_values', type=int, default=16, help='permutation size')
     parser.add_argument('--amount', type=float, default=0.5, help='how many parameters to be pruned')
     parser.add_argument('--patience', type=int, default=30, help='patience for early stop')
     parser.add_argument('--resume', action='store_true', help='if true, resume training')
