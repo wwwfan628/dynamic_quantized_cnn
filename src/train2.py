@@ -3,9 +3,8 @@ from models.mobilenet_v2 import MobileNetV2
 from models.lenet5 import LeNet5
 from models.vgg import VGG_small
 from utils.datasets import load_dataset
-from utils.prune import prune_weight_structured_abs
+from utils.quantized_optimizer import Quant_SGD
 from torch import nn, optim
-import torch.nn.utils.prune as prune
 import torch
 import numpy as np
 import argparse
@@ -85,22 +84,6 @@ def save_checkpoint(file_path, model, optimizer, test_acc, train_loss, epoch, ar
         }, file_path)
 
 
-def compute_zero_percentage_model(model):
-    n_zeros = 0
-    n_params = 0
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-            n_params += m.weight.numel()
-            n_zeros += torch.sum(m.weight == 0).item()
-    return n_zeros * 100 / n_params
-
-
-def compute_zero_percentage_layer(layer, dim):
-    n_zeros = torch.sum(layer.weight == 0).item()
-    n_params = layer.weight.numel()
-    return n_zeros * 100 / n_params
-
-
 def validate(model, dataloader_test):
     # validate
     total = 0
@@ -123,8 +106,9 @@ def train(model, dataloader_train, dataloader_test, args):
     if args.resume:
         checkpoint = torch.load(args.checkpoint_path)
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
-                              nesterov=args.nesterov)
+        optimizer = Quant_SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
+                              nesterov=args.nesterov, params_prime=model.parameters(), group_size=64, num_values=16,
+                              update_available_values=False)
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         for state in optimizer.state.values():
             for k, v in state.items():
@@ -134,13 +118,16 @@ def train(model, dataloader_train, dataloader_test, args):
         best_test_acc = checkpoint['test_acc']
         best_epoch = checkpoint['epoch']
         cur_epoch = checkpoint['epoch']
+        cur_step = 0
     else:
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
-                              nesterov=args.nesterov)
+        optimizer = Quant_SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
+                              nesterov=args.nesterov, params_prime=model.parameters(), group_size=64, num_values=16,
+                              update_available_values=False)
         # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
         best_test_acc = 0
         best_epoch = 0
         cur_epoch = 0
+        cur_step = 0
     for epoch in range(cur_epoch, cur_epoch + args.max_epoch):
         t0 = time.time()  # start time
         model.train()
@@ -151,55 +138,37 @@ def train(model, dataloader_train, dataloader_test, args):
             output = model(images)
             loss = loss_func(output, labels)
             loss.backward()
+            if epoch % 20 == 0:
+                optimizer.param_groups[0]['update_available_values'] = True
+            else:
+                optimizer.param_groups[0]['update_available_values'] = False
             optimizer.step()
+
 
         # validate
         dur.append(time.time() - t0)
         test_accuracy = float(validate(model, dataloader_test))
-        if test_accuracy > best_test_acc:
-            best_test_acc = test_accuracy
-            best_epoch = epoch
         print("Epoch {:03d} | Training Loss {:.4f} | Test Acc {:.4f}% | Time(s) {:.4f}".format(epoch + 1, loss, test_accuracy, np.mean(dur)))
 
         # adjust lr
         # scheduler.step()
-        optimizer.param_groups[0]['lr'] *= 0.98
+        optimizer.param_groups[0]['lr'] *= 0.99
 
-        # prune
-        # if (epoch >= 100) and (epoch % 20 == 0):
-        #     amount = args.amount * 0.2 * ((epoch - 90) // 20)
-        #     parameters_to_prune = []
-        #     for m in model.modules():
-        #         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        #             parameters_to_prune.append((m, 'weight'))
-        #     prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=amount)
-        #     for parameter_to_prune in parameters_to_prune:
-        #         prune.remove(parameter_to_prune[0], parameter_to_prune[1])
-        #     zero_percentage = compute_zero_percentage_model(model)
-        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
-
-        # if epoch == 100:
-        #     parameters_to_prune = []
-        #     for m in model.modules():
-        #         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        #             parameters_to_prune.append((m, 'weight'))
-        #     prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=args.amount)
-        #     for parameter_to_prune in parameters_to_prune:
-        #         prune.remove(parameter_to_prune[0], parameter_to_prune[1])
-        #     zero_percentage = compute_zero_percentage_model(model)
-        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
-
-        if epoch == 100:
-            for m in model.modules():
-                if isinstance(m, nn.Conv2d):
-                    group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
-                    prune_weight_structured_abs(m.weight, group_size, amount=0.5)
-                elif isinstance(m, nn.Linear):
-                    group_size = m.weight.shape[1]
-                    prune_weight_structured_abs(m.weight, group_size, amount=0.5)
-            zero_percentage = compute_zero_percentage_model(model)
-            print("Weights contain {:.4f}% 0s.".format(zero_percentage))
-
+        # early stop
+        if test_accuracy > best_test_acc:
+            best_test_acc = test_accuracy
+            best_epoch = epoch
+            cur_step = 0
+            # save checkpoint
+            if args.final_param_path == None:
+                final_param_path = './checkpoints/final_checkpoint_' + args.model_name + '_' + args.dataset_name + '.tar'
+            else:
+                final_param_path = args.final_param_path
+            save_checkpoint(final_param_path, model, optimizer, test_accuracy, loss, epoch, args)
+        else:
+            cur_step += 1
+            if cur_step == args.patience:
+                break
     print("Training finished! Best test accuracy = {:.4f}%, found at Epoch {:03d}.".format(best_test_acc, best_epoch + 1))
 
 
@@ -212,7 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.045, help='learning rate of optimizer')
+    parser.add_argument('--lr', type=float, default=0.4, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
