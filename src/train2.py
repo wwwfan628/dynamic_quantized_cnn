@@ -1,9 +1,10 @@
 from models.mobilenet_v1 import MobileNetV1
 from models.mobilenet_v2 import MobileNetV2
-from models.lenet5 import LeNet5
+from models.lenet5 import LeNet5_Masked
 from models.vgg import VGG_small
 from utils.datasets import load_dataset
 from utils.quantized_optimizer import Quant_SGD
+from utils.prune import update_masks
 from torch import nn, optim
 import torch
 import numpy as np
@@ -41,7 +42,7 @@ def main(args):
 
     # build neural network
     if args.model_name == 'LeNet5':
-        model = LeNet5(input_channel=in_channels, n_classes=num_classes)
+        model = LeNet5_Masked(input_channel=in_channels, n_classes=num_classes)
     elif args.model_name == 'VGG':
         model = VGG_small(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV1':
@@ -131,6 +132,11 @@ def train(model, dataloader_train, dataloader_test, args):
     for epoch in range(cur_epoch, cur_epoch + args.max_epoch):
         t0 = time.time()  # start time
         model.train()
+        if epoch % 5 == 0:
+            update_masks(model, amount=0.9)
+            optimizer.param_groups[0]['update_available_values'] = True
+        else:
+            optimizer.param_groups[0]['update_available_values'] = False
         for i, (images, labels) in enumerate(dataloader_train):
             images = images.to(device)
             labels = labels.to(device)
@@ -138,12 +144,7 @@ def train(model, dataloader_train, dataloader_test, args):
             output = model(images)
             loss = loss_func(output, labels)
             loss.backward()
-            if epoch % 20 == 0:
-                optimizer.param_groups[0]['update_available_values'] = True
-            else:
-                optimizer.param_groups[0]['update_available_values'] = False
             optimizer.step()
-
 
         # validate
         dur.append(time.time() - t0)

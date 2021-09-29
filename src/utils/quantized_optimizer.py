@@ -42,41 +42,6 @@ class Quant_SGD(Optimizer):
             group.setdefault('nesterov', False)
 
     @torch.no_grad()
-    def update_available_values(self):
-        for group in self.param_groups:
-            num_values = group['num_values']
-            group_size = group['group_size']
-            num_pos = int(0.5 * num_values)
-            num_neg = int(0.5 * num_values)
-            p_prime_flatten = np.zeros(0)
-            for p_ind, p in enumerate(group['params']):
-                if p.grad is not None:
-                    p_prime_flatten = np.append(p_prime_flatten, group['params_prime'][p_ind].view(-1).clone().detach().cpu())
-            p_prime_flatten = torch.Tensor(p_prime_flatten).to(device)
-            if p_prime_flatten.numel() % group_size == 0:
-                pos_idx_topk = torch.topk(p_prime_flatten.where(p_prime_flatten > 0, torch.zeros(
-                    p_prime_flatten.shape)).view(-1, group_size).abs(), k=num_pos)[1]
-                neg_idx_topk = torch.topk(p_prime_flatten.where(p_prime_flatten < 0, torch.zeros(
-                    p_prime_flatten.shape)).view(-1, group_size).abs(), k=num_neg)[1]
-                pos_weight_values = p_prime_flatten.where(p_prime_flatten > 0,
-                    torch.zeros(p_prime_flatten.shape)).view(-1, group_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
-                neg_weight_values = p_prime_flatten.where(p_prime_flatten < 0,
-                    torch.zeros(p_prime_flatten.shape)).view(-1, group_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
-            else:
-                n_row = math.ceil(p_prime_flatten.numel() / group_size)
-                extended_p_prime_flatten = torch.zeros(n_row * group_size)
-                extended_p_prime_flatten[:p_prime_flatten.numel()] = p_prime_flatten
-                pos_idx_topk = torch.topk(extended_p_prime_flatten.where(extended_p_prime_flatten > 0,
-                    torch.zeros(extended_p_prime_flatten.shape)).view(-1, group_size).abs(), k=num_pos)[1]
-                neg_idx_topk = torch.topk(extended_p_prime_flatten.where(extended_p_prime_flatten < 0,
-                    torch.zeros(extended_p_prime_flatten.shape)).view(-1, group_size).abs(), k=num_neg)[1]
-                pos_weight_values = extended_p_prime_flatten.where(extended_p_prime_flatten > 0,
-                    torch.zeros(extended_p_prime_flatten.shape)).view(-1, group_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
-                neg_weight_values = extended_p_prime_flatten.where(extended_p_prime_flatten < 0,
-                    torch.zeros(extended_p_prime_flatten.shape)).view(-1, group_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
-            group['available_values'] = torch.cat([pos_weight_values, neg_weight_values], dim=0)
-
-    @torch.no_grad()
     def step(self, closure=None):
         """Performs a single optimization step.
 

@@ -60,7 +60,7 @@ def update_quantized_weight_values(model, perm_size=16, amount=0.5):
 def update_masks(model, amount=0.5):
     weights = []
     for layer in model.modules():
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(layer, nn.BatchNorm1d) or isinstance(layer, nn.BatchNorm2d):
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
             weights.append(layer.weight.clone().detach().to(device))
     weights_abs_flatten = np.zeros(0)
     weights_shape = []
@@ -85,7 +85,7 @@ def update_masks(model, amount=0.5):
         masks.append(mask)
     mask_idx = 0
     for layer in model.modules():
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear) or isinstance(layer, nn.BatchNorm1d) or isinstance(layer, nn.BatchNorm2d):
+        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
             layer.set_mask(masks[mask_idx])
             mask_idx += 1
 
