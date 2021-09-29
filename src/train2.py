@@ -66,11 +66,12 @@ def main(args):
     train(model, dataloader_train, dataloader_test, args)
 
 
-def save_checkpoint(file_path, model, optimizer, test_acc, train_loss, epoch, args):
+def save_checkpoint(file_path, model, quant_optimizer, tradi_optimizer, test_acc, train_loss, epoch, args):
     if args.dataset_name == 'ImageNet':
         torch.save({
             'model_state_dict': model.module.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
+            'quant_optimizer_state_dict': quant_optimizer.state_dict(),
+            'tradi_optimizer_state_dict': tradi_optimizer.state_dict(),
             'test_acc': test_acc,
             'train_loss': train_loss,
             'epoch': epoch,
@@ -78,7 +79,8 @@ def save_checkpoint(file_path, model, optimizer, test_acc, train_loss, epoch, ar
     else:
         torch.save({
             'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
+            'quant_optimizer_state_dict': quant_optimizer.state_dict(),
+            'tradi_optimizer_state_dict': tradi_optimizer.state_dict(),
             'test_acc': test_acc,
             'train_loss': train_loss,
             'epoch': epoch,
@@ -104,14 +106,30 @@ def validate(model, dataloader_test):
 def train(model, dataloader_train, dataloader_test, args):
     dur = []  # duration for training epochs
     loss_func = nn.CrossEntropyLoss()
+    # separate parameters into two categories
+    params_quant_optim = []
+    params_tradi_optim = []
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            params_quant_optim.append(m.weight)
+            if m.bias != None:
+                params_tradi_optim.append(m.bias)
+        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
+            params_tradi_optim += list(m.parameters())
     if args.resume:
         checkpoint = torch.load(args.checkpoint_path)
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer = Quant_SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
-                              nesterov=args.nesterov, params_prime=model.parameters(), group_size=64, num_values=16,
-                              update_available_values=False)
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        for state in optimizer.state.values():
+        quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
+                              nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
+                              num_values=args.num_values, update_available_values=False)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.045, weight_decay=0.00004, momentum=0.9, nesterov=True)
+        quant_optimizer.load_state_dict(checkpoint['quant_optimizer_state_dict'])
+        tradi_optimizer.load_state_dict(checkpoint['tradi_optimizer_state_dict'])
+        for state in quant_optimizer.state.values():
+            for k, v in state.items():
+                if torch.is_tensor(v):
+                    state[k] = v.cuda()
+        for state in tradi_optimizer.state.values():
             for k, v in state.items():
                 if torch.is_tensor(v):
                     state[k] = v.cuda()
@@ -121,9 +139,10 @@ def train(model, dataloader_train, dataloader_test, args):
         cur_epoch = checkpoint['epoch']
         cur_step = 0
     else:
-        optimizer = Quant_SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
-                              nesterov=args.nesterov, params_prime=model.parameters(), group_size=64, num_values=16,
-                              update_available_values=False)
+        quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
+                              nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
+                              num_values=args.num_values, update_available_values=False)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.045, weight_decay=0.00004, momentum=0.9, nesterov=True)
         # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
         best_test_acc = 0
         best_epoch = 0
@@ -133,18 +152,20 @@ def train(model, dataloader_train, dataloader_test, args):
         t0 = time.time()  # start time
         model.train()
         if epoch % 5 == 0:
-            update_masks(model, amount=0.9)
-            optimizer.param_groups[0]['update_available_values'] = True
+            update_masks(model, amount=args.amount)
+            quant_optimizer.param_groups[0]['update_available_values'] = True
         else:
-            optimizer.param_groups[0]['update_available_values'] = False
+            quant_optimizer.param_groups[0]['update_available_values'] = False
         for i, (images, labels) in enumerate(dataloader_train):
             images = images.to(device)
             labels = labels.to(device)
-            optimizer.zero_grad()
+            quant_optimizer.zero_grad()
+            tradi_optimizer.zero_grad()
             output = model(images)
             loss = loss_func(output, labels)
             loss.backward()
-            optimizer.step()
+            quant_optimizer.step()
+            tradi_optimizer.step()
 
         # validate
         dur.append(time.time() - t0)
@@ -153,7 +174,9 @@ def train(model, dataloader_train, dataloader_test, args):
 
         # adjust lr
         # scheduler.step()
-        optimizer.param_groups[0]['lr'] *= 0.99
+        tradi_optimizer.param_groups[0]['lr'] *= 0.98
+        if epoch % 10 == 0:
+            quant_optimizer.param_groups[0]['lr'] *= 0.9
 
         # early stop
         if test_accuracy > best_test_acc:
@@ -165,7 +188,7 @@ def train(model, dataloader_train, dataloader_test, args):
                 final_param_path = './checkpoints/final_checkpoint_' + args.model_name + '_' + args.dataset_name + '.tar'
             else:
                 final_param_path = args.final_param_path
-            save_checkpoint(final_param_path, model, optimizer, test_accuracy, loss, epoch, args)
+            save_checkpoint(final_param_path, model, quant_optimizer, tradi_optimizer, test_accuracy, loss, epoch, args)
         else:
             cur_step += 1
             if cur_step == args.patience:
@@ -182,13 +205,14 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.4, help='learning rate of optimizer')
+    parser.add_argument('--lr', type=float, default=0.05, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
-    parser.add_argument('--perm_size', type=int, default=16, help='permutation size')
+    parser.add_argument('--group_size', type=int, default=64, help='group size to compute max and min values')
+    parser.add_argument('--num_values', type=int, default=16, help='number of available parameter values')
     parser.add_argument('--amount', type=float, default=0.5, help='how many parameters to be pruned')
-    parser.add_argument('--patience', type=int, default=30, help='patience for early stop')
+    parser.add_argument('--patience', type=int, default=10, help='patience for early stop')
     parser.add_argument('--resume', action='store_true', help='if true, resume training')
     parser.add_argument('--checkpoint_path', default=None)
     parser.add_argument('--init_param_path', default=None)
