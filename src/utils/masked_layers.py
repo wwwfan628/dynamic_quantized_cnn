@@ -12,7 +12,7 @@ class LinearMasked(nn.Linear):
     def __init__(self, in_features, out_features, bias=True):
         super(LinearMasked, self).__init__(in_features, out_features, bias)
         self.mask_flag = False
-        self.mask = torch.ones(self.weight.shape)
+        self.mask = torch.ones(self.weight.shape).to(device)
 
     def set_mask(self, mask):
         self.mask = mask
@@ -34,7 +34,7 @@ class Conv2dMasked(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         super(Conv2dMasked, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.mask_flag = False
-        self.mask = torch.ones(self.weight.shape)
+        self.mask = torch.ones(self.weight.shape).to(device)
 
     def set_mask(self, mask):
         self.mask = mask
