@@ -24,7 +24,7 @@ class LinearMasked(nn.Linear):
 
     def forward(self, x):
         if self.mask_flag:
-            weight = self.weight * self.mask
+            weight = self.weight * self.mask.to(self.weight.device)
             return F.linear(x, weight, self.bias)
         else:
             return F.linear(x, self.weight, self.bias)
@@ -46,7 +46,7 @@ class Conv2dMasked(nn.Conv2d):
 
     def forward(self, x):
         if self.mask_flag:
-            weight = self.weight * self.mask
+            weight = self.weight * self.mask.to(self.weight.device)
             return F.conv2d(x, weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
         else:
             return F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
