@@ -12,10 +12,10 @@ class LinearMasked(nn.Linear):
     def __init__(self, in_features, out_features, bias=True):
         super(LinearMasked, self).__init__(in_features, out_features, bias)
         self.mask_flag = False
-        self.mask = torch.ones(self.weight.shape).to(device)
+        self.mask = torch.ones(self.weight.shape).to(self.weight.device)
 
     def set_mask(self, mask):
-        self.mask = mask.to(device)
+        self.mask = mask.to(self.weight.device)
         self.mask_flag = True
 
     def get_mask(self):
