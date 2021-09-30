@@ -151,7 +151,7 @@ def train(model, dataloader_train, dataloader_test, args):
     for epoch in range(cur_epoch, cur_epoch + args.max_epoch):
         t0 = time.time()  # start time
         model.train()
-        if epoch % 5 == 0:
+        if epoch % 20 == 0:
             update_masks(model, amount=args.amount)
             quant_optimizer.param_groups[0]['update_available_values'] = True
         else:
