@@ -15,7 +15,7 @@ class LinearMasked(nn.Linear):
         self.mask = torch.ones(self.weight.shape).to(device)
 
     def set_mask(self, mask):
-        self.mask = mask
+        self.mask = mask.to(device)
         self.mask_flag = True
 
     def get_mask(self):
@@ -37,7 +37,7 @@ class Conv2dMasked(nn.Conv2d):
         self.mask = torch.ones(self.weight.shape).to(device)
 
     def set_mask(self, mask):
-        self.mask = mask
+        self.mask = mask.to(device)
         self.mask_flag = True
 
     def get_mask(self):
