@@ -1,4 +1,4 @@
-from models.mobilenet_v1 import MobileNetV1
+from models.mobilenet_v1 import MobileNetV1_Masked
 from models.mobilenet_v2 import MobileNetV2
 from models.lenet5 import LeNet5_Masked
 from models.vgg import VGG_small
@@ -46,7 +46,7 @@ def main(args):
     elif args.model_name == 'VGG':
         model = VGG_small(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV1':
-        model = MobileNetV1(input_channel=in_channels, n_classes=num_classes).to(device)
+        model = MobileNetV1_Masked(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV2':
         model = MobileNetV2(input_channel=in_channels, n_classes=num_classes).to(device)
     else:
