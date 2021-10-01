@@ -98,13 +98,25 @@ def prune_weight_abs(param, amount=0.9):
 
 
 @torch.no_grad()
-def prune_weight_structured_abs(param, group_size, amount=0.5):
+def prune_weight_structured_abs(param, group_size=16, amount=0.9):
     thr = int(group_size * amount)
     if param.numel() % group_size == 0:
         col_idx = torch.argsort(param.view(-1, group_size).abs())[:, :thr].reshape(-1)
-        row_idx = torch.arange(param.view(-1, group_size).shape[0]).repeat_interleave(thr) * group_size
+        row_idx = torch.arange(param.view(-1, group_size).shape[0]).to(device).repeat_interleave(thr) * group_size
         idx = col_idx + row_idx
         param.view(-1)[idx] = 0
+    else:
+        n_row = param.numel() // group_size
+        param_dividable = param.view(-1)[:n_row * group_size].view(-1, group_size)
+        col_idx_dividable = torch.argsort(param_dividable.abs())[:, :thr].reshape(-1)
+        row_idx_dividable = torch.arange(param_dividable.shape[0]).to(device).repeat_interleave(thr) * group_size
+        idx_dividable = col_idx_dividable + row_idx_dividable
+        param.view(-1)[idx_dividable] = 0
+        n_rest = param.numel() % group_size
+        thr_rest = int(n_rest * amount)
+        param_rest = param.view(-1)[n_row * group_size:]
+        idx_rest = torch.argsort(param_rest.abs())[:thr_rest]
+        param_rest[idx_rest] = 0
 
 
 @torch.no_grad()
