@@ -212,7 +212,7 @@ if __name__ == '__main__':
     parser.add_argument('--group_size', type=int, default=64, help='group size to compute max and min values')
     parser.add_argument('--num_values', type=int, default=16, help='number of available parameter values')
     parser.add_argument('--amount', type=float, default=0.25, help='how many parameters to be pruned')
-    parser.add_argument('--patience', type=int, default=10, help='patience for early stop')
+    parser.add_argument('--patience', type=int, default=30, help='patience for early stop')
     parser.add_argument('--resume', action='store_true', help='if true, resume training')
     parser.add_argument('--checkpoint_path', default=None)
     parser.add_argument('--init_param_path', default=None)
