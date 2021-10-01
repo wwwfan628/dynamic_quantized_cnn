@@ -48,26 +48,28 @@ def quant_sgd(params: List[Tensor], d_p_list: List[Tensor], momentum_buffer_list
         params_prime_flatten = torch.Tensor(params_prime_flatten).to(device)
         if params_prime_flatten.numel() % group_size == 0:
             pos_idx_topk = torch.topk(params_prime_flatten.where(params_prime_flatten > 0, torch.zeros(
-                params_prime_flatten.shape)).view(-1, group_size).abs(), k=num_pos)[1]
+                params_prime_flatten.shape).to(device)).view(-1, group_size).abs(), k=num_pos)[1]
             neg_idx_topk = torch.topk(params_prime_flatten.where(params_prime_flatten < 0, torch.zeros(
-                params_prime_flatten.shape)).view(-1, group_size).abs(), k=num_neg)[1]
+                params_prime_flatten.shape).to(device)).view(-1, group_size).abs(), k=num_neg)[1]
             pos_weight_values = params_prime_flatten.where(params_prime_flatten > 0,
-                torch.zeros(params_prime_flatten.shape)).view(-1, group_size).gather(dim=1, index=pos_idx_topk).mean(dim=0)
+                torch.zeros(params_prime_flatten.shape).to(device)).view(-1, group_size).gather(dim=1,
+                index=pos_idx_topk).mean(dim=0)
             neg_weight_values = params_prime_flatten.where(params_prime_flatten < 0,
-                torch.zeros(params_prime_flatten.shape)).view(-1, group_size).gather(dim=1, index=neg_idx_topk).mean(dim=0)
+                torch.zeros(params_prime_flatten.shape).to(device)).view(-1, group_size).gather(dim=1,
+                index=neg_idx_topk).mean(dim=0)
         else:
             n_row = math.ceil(params_prime_flatten.numel() / group_size)
-            extended_params_prime_flatten = torch.zeros(n_row * group_size)
+            extended_params_prime_flatten = torch.zeros(n_row * group_size).to(device)
             extended_params_prime_flatten[:params_prime_flatten.numel()] = params_prime_flatten
             pos_idx_topk = torch.topk(extended_params_prime_flatten.where(extended_params_prime_flatten > 0,
-                torch.zeros(extended_params_prime_flatten.shape)).view(-1, group_size).abs(), k=num_pos)[1]
+                torch.zeros(extended_params_prime_flatten.shape).to(device)).view(-1, group_size).abs(), k=num_pos)[1]
             neg_idx_topk = torch.topk(extended_params_prime_flatten.where(extended_params_prime_flatten < 0,
-                torch.zeros(extended_params_prime_flatten.shape)).view(-1, group_size).abs(), k=num_neg)[1]
+                torch.zeros(extended_params_prime_flatten.shape).to(device)).view(-1, group_size).abs(), k=num_neg)[1]
             pos_weight_values = extended_params_prime_flatten.where(extended_params_prime_flatten > 0,
-                torch.zeros(extended_params_prime_flatten.shape)).view(-1, group_size).gather(dim=1,
+                torch.zeros(extended_params_prime_flatten.shape).to(device)).view(-1, group_size).gather(dim=1,
                 index=pos_idx_topk).mean(dim=0)
             neg_weight_values = extended_params_prime_flatten.where(extended_params_prime_flatten < 0,
-                torch.zeros(extended_params_prime_flatten.shape)).view(-1, group_size).gather(dim=1,
+                torch.zeros(extended_params_prime_flatten.shape).to(device)).view(-1, group_size).gather(dim=1,
                 index=neg_idx_topk).mean(dim=0)
         available_values.view(-1)[:] = torch.cat([pos_weight_values, neg_weight_values], dim=0)
 
