@@ -122,7 +122,7 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.0, momentum=0.9, nesterov=True)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.00004, momentum=0.9, nesterov=True)
         quant_optimizer.load_state_dict(checkpoint['quant_optimizer_state_dict'])
         tradi_optimizer.load_state_dict(checkpoint['tradi_optimizer_state_dict'])
         for state in quant_optimizer.state.values():
@@ -142,7 +142,7 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.0, momentum=0.9, nesterov=True)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.00004, momentum=0.9, nesterov=True)
         # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
         best_test_acc = 0
         best_epoch = 0
