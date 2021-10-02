@@ -206,7 +206,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
     parser.add_argument('--lr', type=float, default=0.1, help='learning rate of optimizer')
-    parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
+    parser.add_argument('--weight_decay', type=float, default=0.00004, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
     parser.add_argument('--group_size', type=int, default=64, help='group size to compute max and min values')
