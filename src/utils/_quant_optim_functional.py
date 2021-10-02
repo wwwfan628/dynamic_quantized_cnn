@@ -20,7 +20,7 @@ def quant_sgd(params: List[Tensor], d_p_list: List[Tensor], momentum_buffer_list
     for i, (param, param_prime) in enumerate(zip(params, params_prime)):
         d_p = d_p_list[i]
         if weight_decay != 0:
-            d_p = d_p.add(param, alpha=weight_decay)
+            d_p = d_p.add(param_prime, alpha=weight_decay)
 
         if momentum != 0:
             buf = momentum_buffer_list[i]
