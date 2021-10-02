@@ -42,6 +42,12 @@ class Quant_SGD(Optimizer):
             group.setdefault('nesterov', False)
 
     @torch.no_grad()
+    def get_params_prime(self):
+        for group in self.param_groups:
+            params_prime = group['params_prime']
+        return params_prime
+
+    @torch.no_grad()
     def step(self, closure=None):
         """Performs a single optimization step.
 

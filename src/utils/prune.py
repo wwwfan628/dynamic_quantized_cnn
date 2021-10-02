@@ -57,11 +57,10 @@ def update_quantized_weight_values(model, group_size=16, num_values=0.5):
 
 
 @torch.no_grad()
-def update_masks(model, amount=0.5):
+def update_masks(model, params_prime, amount=0.5):
     weights = []
-    for layer in model.modules():
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-            weights.append(layer.weight.clone().detach().to(device))
+    for weight in params_prime:
+        weights.append(weight.clone().detach().to(device))
     weights_abs_flatten = np.zeros(0)
     weights_shape = []
     weights_start_idx = []
