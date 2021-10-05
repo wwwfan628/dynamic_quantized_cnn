@@ -193,10 +193,10 @@ def train(model, dataloader_train, dataloader_test, args):
             for m in model.modules():
                 if isinstance(m, nn.Conv2d):
                     group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
-                    prune_weight_structured_abs(m.weight, group_size, amount=0.5)
+                    prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
                 elif isinstance(m, nn.Linear):
                     group_size = m.weight.shape[1]
-                    prune_weight_structured_abs(m.weight, group_size, amount=0.5)
+                    prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
             zero_percentage = compute_zero_percentage_model(model)
             print("Weights contain {:.4f}% 0s.".format(zero_percentage))
 
@@ -213,7 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
     parser.add_argument('--lr', type=float, default=0.045, help='learning rate of optimizer')
-    parser.add_argument('--weight_decay', type=float, default=0, help='weight decay of optimizer')
+    parser.add_argument('--weight_decay', type=float, default=0.0004, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
     parser.add_argument('--perm_size', type=int, default=16, help='permutation size')
