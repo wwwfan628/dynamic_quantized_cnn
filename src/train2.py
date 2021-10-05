@@ -151,8 +151,8 @@ def train(model, dataloader_train, dataloader_test, args):
     for epoch in range(cur_epoch, cur_epoch + args.max_epoch):
         t0 = time.time()  # start time
         model.train()
-        if epoch % 20 == 0:
-            update_masks(model, params_prime=quant_optimizer.get_params_prime(), amount=args.amount)
+        if epoch % 10 == 0:
+            # update_masks(model, params_prime=quant_optimizer.get_params_prime(), amount=args.amount)
             quant_optimizer.param_groups[0]['update_available_values'] = True
         else:
             quant_optimizer.param_groups[0]['update_available_values'] = False
@@ -209,9 +209,9 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', type=float, default=0.00004, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
-    parser.add_argument('--group_size', type=int, default=64, help='group size to compute max and min values')
+    parser.add_argument('--group_size', type=int, default=32, help='group size to compute max and min values')
     parser.add_argument('--num_values', type=int, default=16, help='number of available parameter values')
-    parser.add_argument('--amount', type=float, default=0.25, help='how many parameters to be pruned')
+    parser.add_argument('--amount', type=float, default=0.5, help='how many parameters to be pruned')
     parser.add_argument('--patience', type=int, default=30, help='patience for early stop')
     parser.add_argument('--resume', action='store_true', help='if true, resume training')
     parser.add_argument('--checkpoint_path', default=None)

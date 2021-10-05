@@ -20,7 +20,7 @@ def quant_sgd(params: List[Tensor], d_p_list: List[Tensor], momentum_buffer_list
     for i, (param, param_prime) in enumerate(zip(params, params_prime)):
         d_p = d_p_list[i]
         if weight_decay != 0:
-            d_p = d_p.add(param_prime, alpha=weight_decay)
+            d_p = d_p.add(param, alpha=weight_decay)
 
         if momentum != 0:
             buf = momentum_buffer_list[i]
@@ -73,11 +73,49 @@ def quant_sgd(params: List[Tensor], d_p_list: List[Tensor], momentum_buffer_list
                 index=neg_idx_topk).mean(dim=0)
         available_values.view(-1)[:] = torch.cat([pos_weight_values, neg_weight_values], dim=0)
 
+    # for i, (param, param_prime) in enumerate(zip(params, params_prime)):
+    #     idx = torch.argmin(
+    #         (param_prime.view(-1).unsqueeze(1).expand(-1, available_values.shape[0]) - available_values).abs(),
+    #         dim=1).unsqueeze(0)
+    #     param.view(-1)[:] = (available_values.unsqueeze(0).expand(param.view(-1).shape[0], -1)).gather(-1, idx)
+
     for i, (param, param_prime) in enumerate(zip(params, params_prime)):
-        idx = torch.argmin(
-            (param_prime.view(-1).unsqueeze(1).expand(-1, available_values.shape[0]) - available_values).abs(),
-            dim=1).unsqueeze(0)
-        param.view(-1)[:] = (available_values.unsqueeze(0).expand(param.view(-1).shape[0], -1)).gather(-1, idx)
+        num_pos = int(0.5 * num_values)
+        num_neg = int(0.5 * num_values)
+        if param_prime.numel() % group_size == 0:
+            n_row = param_prime.numel() // group_size
+            pos_idx_topk_col = torch.topk(param_prime.where(param_prime > 0, torch.zeros(
+                param_prime.shape).to(device)).view(-1, group_size).abs(), k=num_pos)[1].view(-1)
+            neg_idx_topk_col = torch.topk(param_prime.where(param_prime < 0, torch.zeros(
+                param_prime.shape).to(device)).view(-1, group_size).abs(), k=num_neg)[1].view(-1)
+            pos_idx_topk_row = torch.arange(n_row).to(device).repeat_interleave(num_pos) * group_size
+            neg_idx_topk_row = torch.arange(n_row).to(device).repeat_interleave(num_neg) * group_size
+            pos_idx_topk = pos_idx_topk_col + pos_idx_topk_row
+            neg_idx_topk = neg_idx_topk_col + neg_idx_topk_row
+            param.view(-1)[:] = torch.zeros(param.numel()).to(device)
+            param.view(-1)[pos_idx_topk] = available_values[:num_pos].repeat(n_row)
+            param.view(-1)[neg_idx_topk] = available_values[num_pos:].repeat(n_row)
+        else:
+            n_row = math.ceil(param_prime.numel() / group_size)
+            param_prime_extended = torch.zeros([n_row, group_size])
+            param_prime_extended.view(-1)[:param_prime.numel()] = param_prime.view(-1)
+            pos_idx_topk_col = torch.topk(param_prime_extended.where(param_prime_extended > 0, torch.zeros(
+                param_prime_extended.shape).to(device)).view(-1, group_size).abs(), k=num_pos)[1].view(-1)
+            neg_idx_topk_col = torch.topk(param_prime_extended.where(param_prime_extended < 0, torch.zeros(
+                param_prime_extended.shape).to(device)).view(-1, group_size).abs(), k=num_neg)[1].view(-1)
+            pos_idx_topk_row = torch.arange(n_row).to(device).repeat_interleave(num_pos) * group_size
+            neg_idx_topk_row = torch.arange(n_row).to(device).repeat_interleave(num_neg) * group_size
+            pos_idx_topk = pos_idx_topk_col + pos_idx_topk_row
+            neg_idx_topk = neg_idx_topk_col + neg_idx_topk_row
+            param_extended = torch.zeros([n_row, group_size]).to(device)
+            param_extended.view(-1)[pos_idx_topk] = available_values[:num_pos].repeat(n_row)
+            param_extended.view(-1)[neg_idx_topk] = available_values[num_pos:].repeat(n_row)
+            param.view(-1)[:] = param_extended.view(-1)[:param.numel()]
+
+
+
+
+
 
 
 
