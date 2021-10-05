@@ -178,27 +178,27 @@ def train(model, dataloader_train, dataloader_test, args):
         #     zero_percentage = compute_zero_percentage_model(model)
         #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
 
-        # if epoch == 100:
-        #     parameters_to_prune = []
-        #     for m in model.modules():
-        #         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        #             parameters_to_prune.append((m, 'weight'))
-        #     prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=args.amount)
-        #     for parameter_to_prune in parameters_to_prune:
-        #         prune.remove(parameter_to_prune[0], parameter_to_prune[1])
-        #     zero_percentage = compute_zero_percentage_model(model)
-        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
-
         if epoch == 100:
+            parameters_to_prune = []
             for m in model.modules():
-                if isinstance(m, nn.Conv2d):
-                    group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
-                    prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
-                elif isinstance(m, nn.Linear):
-                    group_size = m.weight.shape[1]
-                    prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
+                if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                    parameters_to_prune.append((m, 'weight'))
+            prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=args.amount)
+            for parameter_to_prune in parameters_to_prune:
+                prune.remove(parameter_to_prune[0], parameter_to_prune[1])
             zero_percentage = compute_zero_percentage_model(model)
             print("Weights contain {:.4f}% 0s.".format(zero_percentage))
+
+        # if epoch == 100:
+        #     for m in model.modules():
+        #         if isinstance(m, nn.Conv2d):
+        #             group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
+        #             prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
+        #         elif isinstance(m, nn.Linear):
+        #             group_size = m.weight.shape[1]
+        #             prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
+        #     zero_percentage = compute_zero_percentage_model(model)
+        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
 
     print("Training finished! Best test accuracy = {:.4f}%, found at Epoch {:03d}.".format(best_test_acc, best_epoch + 1))
 
