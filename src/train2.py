@@ -4,7 +4,7 @@ from models.lenet5 import LeNet5_Masked
 from models.vgg import VGG_small
 from utils.datasets import load_dataset
 from utils.quantized_optimizer import Quant_SGD
-from utils.prune import update_masks
+from utils.prune import update_masks_globally
 from torch import nn, optim
 import torch
 import numpy as np
@@ -56,13 +56,14 @@ def main(args):
     if args.dataset_name == 'ImageNet':
         model = torch.nn.DataParallel(model).to(device)
 
-    # train
+    # traditional training
     if args.init_param_path == None:
         init_param_path = './checkpoints/init_param_' + args.model_name + '_' + args.dataset_name + '.pth'
     else:
         init_param_path = args.init_param_path
     # save initial parameters
     torch.save(model.state_dict(), init_param_path)
+    train_traditionally(model, dataloader_train, dataloader_test, args)
     train(model, dataloader_train, dataloader_test, args)
 
 
@@ -101,6 +102,56 @@ def validate(model, dataloader_test):
             total += x.size(0)
             correct += torch.sum(pred == labels)
     return correct*100.0/total
+
+
+def train_traditionally(model, dataloader_train, dataloader_test, args):
+    dur = []  # duration for training epochs
+    loss_func = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.045, weight_decay=0.00004, momentum=0.9, nesterov=True)
+    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
+    best_test_acc = 0
+    best_epoch = 0
+    cur_step = 0
+    for epoch in range(100):
+        t0 = time.time()  # start time
+        model.train()
+        for i, (images, labels) in enumerate(dataloader_train):
+            images = images.to(device)
+            labels = labels.to(device)
+            optimizer.zero_grad()
+            output = model(images)
+            loss = loss_func(output, labels)
+            loss.backward()
+            optimizer.step()
+
+        # validate
+        dur.append(time.time() - t0)
+        test_accuracy = float(validate(model, dataloader_test))
+        print("Epoch {:03d} | Training Loss {:.4f} | Test Acc {:.4f}% | Time(s) {:.4f}".format(epoch + 1, loss, test_accuracy, np.mean(dur)))
+
+        # adjust lr
+        # scheduler.step()
+        optimizer.param_groups[0]['lr'] *= 0.98
+
+        # early stop
+        if test_accuracy > best_test_acc:
+            best_test_acc = test_accuracy
+            best_epoch = epoch
+            cur_step = 0
+            # save checkpoint
+            if args.final_param_path == None:
+                final_param_path = './checkpoints/checkpoint_tradition_' + args.model_name + '_' + args.dataset_name + '.tar'
+            else:
+                final_param_path = args.final_param_path
+            if args.dataset_name == 'ImageNet':
+                torch.save(model.module.state_dict(), final_param_path)
+            else:
+                torch.save(model.state_dict(), final_param_path)
+        else:
+            cur_step += 1
+            if cur_step == 20:
+                break
+    print("Traditional Training finished! Best test accuracy = {:.4f}%, found at Epoch {:03d}.".format(best_test_acc, best_epoch + 1))
 
 
 def train(model, dataloader_train, dataloader_test, args):
@@ -142,7 +193,7 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.1, weight_decay=0.00004, momentum=0.9, nesterov=True)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.02, weight_decay=0.00004, momentum=0.9, nesterov=True)
         # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
         best_test_acc = 0
         best_epoch = 0
@@ -151,8 +202,8 @@ def train(model, dataloader_train, dataloader_test, args):
     for epoch in range(cur_epoch, cur_epoch + args.max_epoch):
         t0 = time.time()  # start time
         model.train()
-        if epoch % 10 == 0:
-            # update_masks(model, params_prime=quant_optimizer.get_params_prime(), amount=args.amount)
+        if epoch % 20 == 0:
+            update_masks_globally(model, params_prime=quant_optimizer.get_params_prime(), amount=args.amount)
             quant_optimizer.param_groups[0]['update_available_values'] = True
         else:
             quant_optimizer.param_groups[0]['update_available_values'] = False
@@ -205,7 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
     parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.1, help='learning rate of optimizer')
+    parser.add_argument('--lr', type=float, default=0.02, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0.00004, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')

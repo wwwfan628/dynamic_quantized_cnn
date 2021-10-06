@@ -3,7 +3,7 @@ from models.mobilenet_v2 import MobileNetV2
 from models.lenet5 import LeNet5_Quantized
 from models.vgg import VGG_Quantized
 from utils.datasets import load_dataset
-from utils.prune import update_masks, update_quantized_weight_values
+from utils.prune import update_masks_globally, update_quantized_weight_values
 from torch import nn, optim
 import torch
 import numpy as np
@@ -131,7 +131,7 @@ def train(model, dataloader_train, dataloader_test, args):
         model.train()
         for i, (images, labels) in enumerate(dataloader_train):
             update_quantized_weight_values(model, group_size=args.group_size, num_values=args.num_values)
-            update_masks(model, amount=args.amount)
+            update_masks_globally(model, amount=args.amount)
             images = images.to(device)
             labels = labels.to(device)
             optimizer.zero_grad()

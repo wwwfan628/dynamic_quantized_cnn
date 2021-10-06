@@ -1,9 +1,9 @@
-from models.mobilenet_v1 import MobileNetV1
+from models.mobilenet_v1 import MobileNetV1_Masked
 from models.mobilenet_v2 import MobileNetV2
-from models.lenet5 import LeNet5
+from models.lenet5 import LeNet5_Masked
 from models.vgg import VGG_small
 from utils.datasets import load_dataset
-from utils.prune import prune_weight_structured_abs
+from utils.prune import update_masks_unstructured, update_mask_structured
 from torch import nn, optim
 import torch.nn.utils.prune as prune
 import torch
@@ -42,11 +42,11 @@ def main(args):
 
     # build neural network
     if args.model_name == 'LeNet5':
-        model = LeNet5(input_channel=in_channels, n_classes=num_classes)
+        model = LeNet5_Masked(input_channel=in_channels, n_classes=num_classes)
     elif args.model_name == 'VGG':
         model = VGG_small(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV1':
-        model = MobileNetV1(input_channel=in_channels, n_classes=num_classes).to(device)
+        model = MobileNetV1_Masked(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV2':
         model = MobileNetV2(input_channel=in_channels, n_classes=num_classes).to(device)
     else:
@@ -91,7 +91,7 @@ def compute_zero_percentage_model(model):
     for m in model.modules():
         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
             n_params += m.weight.numel()
-            n_zeros += torch.sum(m.weight == 0).item()
+            n_zeros += torch.sum(m.weight * m.mask == 0).item()
     return n_zeros * 100 / n_params
 
 
@@ -166,39 +166,21 @@ def train(model, dataloader_train, dataloader_test, args):
         optimizer.param_groups[0]['lr'] *= 0.98
 
         # prune
-        # if (epoch >= 100) and (epoch % 20 == 0):
-        #     amount = args.amount * 0.2 * ((epoch - 90) // 20)
-        #     parameters_to_prune = []
-        #     for m in model.modules():
-        #         if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        #             parameters_to_prune.append((m, 'weight'))
-        #     prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=amount)
-        #     for parameter_to_prune in parameters_to_prune:
-        #         prune.remove(parameter_to_prune[0], parameter_to_prune[1])
+        # if epoch == 100:
+        #     update_masks_unstructured(model, amount=args.amount)
         #     zero_percentage = compute_zero_percentage_model(model)
         #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
 
-        if epoch == 100:
-            parameters_to_prune = []
+        if epoch == 1:
             for m in model.modules():
-                if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-                    parameters_to_prune.append((m, 'weight'))
-            prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, amount=args.amount)
-            for parameter_to_prune in parameters_to_prune:
-                prune.remove(parameter_to_prune[0], parameter_to_prune[1])
+                if isinstance(m, nn.Conv2d):
+                    group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
+                    update_mask_structured(m, group_size, amount=args.amount)
+                elif isinstance(m, nn.Linear):
+                    group_size = m.weight.shape[1]
+                    update_mask_structured(m, group_size, amount=args.amount)
             zero_percentage = compute_zero_percentage_model(model)
             print("Weights contain {:.4f}% 0s.".format(zero_percentage))
-
-        # if epoch == 100:
-        #     for m in model.modules():
-        #         if isinstance(m, nn.Conv2d):
-        #             group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
-        #             prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
-        #         elif isinstance(m, nn.Linear):
-        #             group_size = m.weight.shape[1]
-        #             prune_weight_structured_abs(m.weight, group_size, amount=args.amount)
-        #     zero_percentage = compute_zero_percentage_model(model)
-        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
 
     print("Training finished! Best test accuracy = {:.4f}%, found at Epoch {:03d}.".format(best_test_acc, best_epoch + 1))
 
