@@ -1,5 +1,5 @@
 from models.mobilenet_v1 import MobileNetV1_Masked
-from models.mobilenet_v2 import MobileNetV2
+from models.mobilenet_v2 import MobileNetV2_Masked
 from models.lenet5 import LeNet5_Masked
 from models.vgg import VGG_small
 from utils.datasets import load_dataset
@@ -48,7 +48,7 @@ def main(args):
     elif args.model_name == 'MobileNetV1':
         model = MobileNetV1_Masked(input_channel=in_channels, n_classes=num_classes).to(device)
     elif args.model_name == 'MobileNetV2':
-        model = MobileNetV2(input_channel=in_channels, n_classes=num_classes).to(device)
+        model = MobileNetV2_Masked(input_channel=in_channels, n_classes=num_classes).to(device)
     else:
         print('Architecture not supported! Please choose from: LeNet5, MobileNetV1, MobileNetV2, VGG and ResNet.')
 
