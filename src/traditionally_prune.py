@@ -166,21 +166,21 @@ def train(model, dataloader_train, dataloader_test, args):
         optimizer.param_groups[0]['lr'] *= 0.98
 
         # prune
-        # if epoch == 100:
-        #     update_masks_unstructured(model, amount=args.amount)
-        #     zero_percentage = compute_zero_percentage_model(model)
-        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
-
-        if epoch == 1:
-            for m in model.modules():
-                if isinstance(m, nn.Conv2d):
-                    group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
-                    update_mask_structured(m, group_size, amount=args.amount)
-                elif isinstance(m, nn.Linear):
-                    group_size = m.weight.shape[1]
-                    update_mask_structured(m, group_size, amount=args.amount)
+        if epoch == 100:
+            update_masks_unstructured(model, amount=args.amount)
             zero_percentage = compute_zero_percentage_model(model)
             print("Weights contain {:.4f}% 0s.".format(zero_percentage))
+
+        # if epoch == 100:
+        #     for m in model.modules():
+        #         if isinstance(m, nn.Conv2d):
+        #             group_size = m.weight.shape[1] * m.weight.shape[2] * m.weight.shape[3]
+        #             update_mask_structured(m, group_size, amount=args.amount)
+        #         elif isinstance(m, nn.Linear):
+        #             group_size = m.weight.shape[1]
+        #             update_mask_structured(m, group_size, amount=args.amount)
+        #     zero_percentage = compute_zero_percentage_model(model)
+        #     print("Weights contain {:.4f}% 0s.".format(zero_percentage))
 
     print("Training finished! Best test accuracy = {:.4f}%, found at Epoch {:03d}.".format(best_test_acc, best_epoch + 1))
 
