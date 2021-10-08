@@ -52,10 +52,6 @@ def main(args):
     else:
         print('Architecture not supported! Please choose from: LeNet5, MobileNetV1, MobileNetV2, VGG and ResNet.')
 
-    # parallel training
-    if args.dataset_name == 'ImageNet':
-        model = torch.nn.DataParallel(model).to(device)
-
     # traditional training
     if args.init_param_path == None:
         init_param_path = './checkpoints/init_param_' + args.model_name + '_' + args.dataset_name + '.pth'
@@ -65,6 +61,9 @@ def main(args):
     torch.save(model.state_dict(), init_param_path)
     checkpoint_path = './checkpoints/checkpoint_tradition_' + args.model_name + '_' + args.dataset_name + '.tar'
     model.load_state_dict(torch.load(checkpoint_path))
+    # parallel training
+    if args.dataset_name == 'ImageNet':
+        model = torch.nn.DataParallel(model).to(device)
     train_traditionally(model, dataloader_train, dataloader_test, args)
     train(model, dataloader_train, dataloader_test, args)
 
