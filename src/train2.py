@@ -63,6 +63,8 @@ def main(args):
         init_param_path = args.init_param_path
     # save initial parameters
     torch.save(model.state_dict(), init_param_path)
+    checkpoint_path = './checkpoints/checkpoint_tradition_' + args.model_name + '_' + args.dataset_name + '.tar'
+    model.load_state_dict(torch.load(checkpoint_path))
     train_traditionally(model, dataloader_train, dataloader_test, args)
     train(model, dataloader_train, dataloader_test, args)
 
@@ -107,12 +109,12 @@ def validate(model, dataloader_test):
 def train_traditionally(model, dataloader_train, dataloader_test, args):
     dur = []  # duration for training epochs
     loss_func = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.045, weight_decay=0.00004, momentum=0.9, nesterov=True)
+    optimizer = optim.SGD(model.parameters(), lr=0.03, weight_decay=0.00004, momentum=0.9, nesterov=True)
     # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=args.max_epoch)
     best_test_acc = 0
     best_epoch = 0
     cur_step = 0
-    for epoch in range(100):
+    for epoch in range(50):
         t0 = time.time()  # start time
         model.train()
         for i, (images, labels) in enumerate(dataloader_train):
