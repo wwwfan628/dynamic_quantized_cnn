@@ -122,7 +122,7 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.4, weight_decay=0.00004, momentum=0.9, nesterov=True)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=args.lr, weight_decay=0.00004, momentum=0.9, nesterov=True)
         quant_optimizer.load_state_dict(checkpoint['quant_optimizer_state_dict'])
         tradi_optimizer.load_state_dict(checkpoint['tradi_optimizer_state_dict'])
         for state in quant_optimizer.state.values():
@@ -133,8 +133,8 @@ def train(model, dataloader_train, dataloader_test, args):
             for k, v in state.items():
                 if torch.is_tensor(v):
                     state[k] = v.cuda()
-        quant_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=quant_optimizer, T_max=args.max_epoch)
-        tradi_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=tradi_optimizer, T_max=args.max_epoch)
+        # quant_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=quant_optimizer, T_max=args.max_epoch)
+        # tradi_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=tradi_optimizer, T_max=args.max_epoch)
         best_test_acc = checkpoint['test_acc']
         best_epoch = checkpoint['epoch']
         cur_epoch = checkpoint['epoch']
@@ -143,9 +143,9 @@ def train(model, dataloader_train, dataloader_test, args):
         quant_optimizer = Quant_SGD(params_quant_optim, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum,
                               nesterov=args.nesterov, params_prime=params_quant_optim, group_size=args.group_size,
                               num_values=args.num_values, update_available_values=False)
-        tradi_optimizer = optim.SGD(params_tradi_optim, lr=0.4, weight_decay=0.00004, momentum=0.9, nesterov=True)
-        quant_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=quant_optimizer, T_max=args.max_epoch)
-        tradi_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=tradi_optimizer, T_max=args.max_epoch)
+        tradi_optimizer = optim.SGD(params_tradi_optim, lr=args.lr, weight_decay=0.00004, momentum=0.9, nesterov=True)
+        # quant_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=quant_optimizer, T_max=args.max_epoch)
+        # tradi_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=tradi_optimizer, T_max=args.max_epoch)
         best_test_acc = 0
         best_epoch = 0
         cur_epoch = 0
@@ -175,10 +175,10 @@ def train(model, dataloader_train, dataloader_test, args):
         print("Epoch {:03d} | Training Loss {:.4f} | Test Acc {:.4f}% | Time(s) {:.4f}".format(epoch + 1, loss, test_accuracy, np.mean(dur)))
 
         # adjust lr
-        quant_scheduler.step()
-        tradi_scheduler.step()
-        # tradi_optimizer.param_groups[0]['lr'] *= 0.99
-        # quant_optimizer.param_groups[0]['lr'] *= 0.99
+        # quant_scheduler.step()
+        # tradi_scheduler.step()
+        tradi_optimizer.param_groups[0]['lr'] *= 0.99
+        quant_optimizer.param_groups[0]['lr'] *= 0.99
 
         # early stop
         if test_accuracy > best_test_acc:
@@ -206,8 +206,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_name', default='ImageNet', help='choose dataset from: MNIST, CIFAR10, ImageNet, ImageNet_mini, COCO')
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
-    parser.add_argument('--max_epoch', type=int, default=100, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.4, help='learning rate of optimizer')
+    parser.add_argument('--max_epoch', type=int, default=150, help='max training epoch')
+    parser.add_argument('--lr', type=float, default=0.1, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0.00004, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
