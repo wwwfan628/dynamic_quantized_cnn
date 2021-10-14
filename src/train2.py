@@ -153,7 +153,7 @@ def train(model, dataloader_train, dataloader_test, args):
     for epoch in range(cur_epoch, cur_epoch + args.max_epoch):
         t0 = time.time()  # start time
         model.train()
-        if epoch % 10 == 0:
+        if epoch % 20 == 0:
             update_masks_globally(model, params_prime=quant_optimizer.get_params_prime(), amount=args.amount)
             quant_optimizer.param_groups[0]['update_available_values'] = True
         else:
@@ -206,8 +206,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_name', default='ImageNet', help='choose dataset from: MNIST, CIFAR10, ImageNet, ImageNet_mini, COCO')
     parser.add_argument('--model_name', default='MobileNetV1', help='choose architecture from: LeNet5, MobileNetV1, MobileNetV2, VGG, ResNet')
     parser.add_argument('--batch_size', type=int, default=1024, help='batch size for training')
-    parser.add_argument('--max_epoch', type=int, default=150, help='max training epoch')
-    parser.add_argument('--lr', type=float, default=0.1, help='learning rate of optimizer')
+    parser.add_argument('--max_epoch', type=int, default=200, help='max training epoch')
+    parser.add_argument('--lr', type=float, default=0.05, help='learning rate of optimizer')
     parser.add_argument('--weight_decay', type=float, default=0.00004, help='weight decay of optimizer')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum of optimizer')
     parser.add_argument('--nesterov', action='store_true', help='nesterov of optimizer')
